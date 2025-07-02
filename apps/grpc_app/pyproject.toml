@@ -1,0 +1,16 @@
+[project]
+name = "grpc-app"
+version = "0.1.0"
+description = "gRPC application for task management"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "core",
+    "grpcio>=1.73.1",
+    "grpcio-observability>=1.73.1",
+    "grpcio-tools>=1.73.1",
+    "opentelemetry-sdk>=1.34.1",
+]
+
+[tool.uv.sources]
+core = { workspace = true }

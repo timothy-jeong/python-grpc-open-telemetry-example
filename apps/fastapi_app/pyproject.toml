@@ -1,0 +1,15 @@
+[project]
+name = "fastapi-app"
+version = "0.1.0"
+description = "FastAPI application for task management"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "core",
+    "fastapi>=0.115.14",
+    "prometheus-fastapi-instrumentator>=7.1.0",
+    "uvicorn>=0.35.0",
+]
+
+[tool.uv.sources]
+core = { workspace = true }
