@@ -4,9 +4,7 @@ version = "0.1.0"
 description = "FastAPI and GRPC share same logic"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = [
-
-]
+dependencies = []
 
 [tool.uv.workspace]
-members = ["apps/fastapi_app", "apps/grpc_app", "core"]
+members = ["apps/*", "core"]

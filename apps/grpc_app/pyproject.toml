@@ -10,6 +10,8 @@ dependencies = [
     "grpcio-observability>=1.73.1",
     "grpcio-tools>=1.73.1",
     "opentelemetry-sdk>=1.34.1",
+    "opentelemetry-instrumentation-grpc>=0.44b0",
+    "protobuf>=6.30.0",
 ]
 
 [tool.uv.sources]

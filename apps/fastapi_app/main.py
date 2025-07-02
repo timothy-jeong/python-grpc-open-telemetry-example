@@ -5,9 +5,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from sqlalchemy.orm import Session
 
-from core.database import get_db
+from core.database import get_db, Base, engine
 from core.schemas import TaskCreate, Task, TaskUpdate
 from core.services import TaskService
+
+# 데이터베이스 테이블 생성
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Task API", version="1.0.0")
 

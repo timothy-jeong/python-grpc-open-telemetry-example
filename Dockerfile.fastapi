@@ -1,5 +1,5 @@
 # Builder stage
-FROM python:3.12
+FROM python:3.12 AS builder
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy
@@ -7,7 +7,9 @@ ENV UV_PYTHON_DOWNLOADS=0
 
 WORKDIR /app/
 
-COPY . .
+COPY pyproject.toml /app/pyproject.toml
+COPY core /app/core
+COPY apps/fastapi_app /app/apps/fastapi_app
 
 RUN uv sync --all-packages --no-dev
 
@@ -28,6 +30,8 @@ ENV PATH="/app/.venv/bin:$PATH"
 # Switch to non-root user
 USER app
 
+WORKDIR /app/apps/fastapi_app
+
 EXPOSE 8000 
 
-CMD uvicorn --host=0.0.0.0 main:app
+CMD ["uvicorn", "--host=0.0.0.0", "--port=8000", "main:app"]

@@ -7,7 +7,7 @@ scrape_configs:
     metrics_path: /prometheus/metrics
     static_configs:
       - targets: ['localhost:9090']
-  - job_name: 'app'
+  - job_name: 'fastapi-app'
     scrape_interval: 5s
     static_configs:
-      - targets: ['app:8000']
+      - targets: ['fastapi-app:8000']
