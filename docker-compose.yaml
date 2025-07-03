@@ -20,6 +20,7 @@ services:
       retries: 5
     networks:
       - example-network
+
   fastapi-app:
     build:
       context: .
@@ -30,6 +31,10 @@ services:
       - 8000:8000
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/tasks
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -46,35 +51,13 @@ services:
       - 50051:50051
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/tasks
+    env_file:
+      - .env
+    volumes:
+      - ./.env:/app/.env:ro
     depends_on:
       postgres:
         condition: service_healthy
-    networks:
-      - example-network
-
-  prometheus:
-    image: prom/prometheus:latest
-    restart: unless-stopped
-    container_name: prometheus
-    ports:
-      - 9090:9090
-    volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - example-network
-
-  grafana:
-    image: grafana/grafana
-    container_name: grafana
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-    ports:
-      - 3000:3000
-    volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning
-    env_file:
-      - ./grafana/config.monitoring
     networks:
       - example-network
 
@@ -83,5 +66,4 @@ networks:
     driver: bridge
 
 volumes:
-  sqlite_data:
   postgres_data:

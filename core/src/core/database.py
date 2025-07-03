@@ -6,16 +6,20 @@ from typing import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
+import logfire
+
 
 # 환경 변수에서 데이터베이스 URL을 가져오거나 기본값 사용
 SQLALCHEMY_DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql://postgres:postgres@localhost:5432/tasks"
+    "postgresql://postgres:postgres@postgres:5432/tasks"
 )
 
 # PostgreSQL 엔진 생성
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
+logfire.configure()
 
+logfire.instrument_sqlalchemy(engine=engine)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
