@@ -44,6 +44,7 @@ services:
     container_name: grpc-app
     ports:
       - 50051:50051
+      - 50052:50052
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/tasks
     depends_on:

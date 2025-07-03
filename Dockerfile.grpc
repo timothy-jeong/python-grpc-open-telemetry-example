@@ -35,6 +35,6 @@ USER app
 
 WORKDIR /app/apps/grpc_app
 
-EXPOSE 50051 
+EXPOSE 50051 50052
 
 CMD ["python", "main.py"]

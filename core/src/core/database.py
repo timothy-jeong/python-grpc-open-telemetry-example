@@ -7,25 +7,26 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
-# 환경 변수에서 데이터베이스 URL을 가져오거나 기본값 사용
-SQLALCHEMY_DATABASE_URL = os.getenv(
+# Get database URL from environment variable or use default
+DATABASE_URL = os.getenv(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:5432/tasks"
 )
 
-# PostgreSQL 엔진 생성
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+# Create PostgreSQL engine
+engine = create_engine(DATABASE_URL, echo=False)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 def get_db() -> Generator[Session, None, None]:
-    """데이터베이스 세션을 생성하고 관리하는 함수.
+    """Function to create and manage database sessions.
     
-    FastAPI의 의존성 주입에서 사용됩니다.
+    This function creates a database session, yields it for use,
+    and ensures proper cleanup even if an exception occurs.
     
     Yields:
-        Session: SQLAlchemy 세션 객체
+        Session: SQLAlchemy session object
     """
     db = SessionLocal()
     try:
@@ -35,15 +36,24 @@ def get_db() -> Generator[Session, None, None]:
 
 @contextmanager
 def get_db_context() -> Generator[Session, None, None]:
-    """데이터베이스 세션을 생성하고 관리하는 컨텍스트 매니저.
+    """Function to create and manage database sessions.
     
-    gRPC 서비스에서 사용하기 위한 컨텍스트 매니저 버전입니다.
+    This function creates a database session, yields it for use,
+    and ensures proper cleanup even if an exception occurs.
     
     Yields:
-        Session: SQLAlchemy 세션 객체
+        Session: SQLAlchemy session object
     """
     db = SessionLocal()
     try:
         yield db
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     finally:
-        db.close() 
+        db.close()
+
+def create_tables():
+    """Create all database tables."""
+    Base.metadata.create_all(bind=engine) 

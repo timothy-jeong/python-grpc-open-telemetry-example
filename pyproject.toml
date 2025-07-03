@@ -4,7 +4,10 @@ version = "0.1.0"
 description = "FastAPI and GRPC share same logic"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "grpcio>=1.73.1",
+    "grpcio-tools>=1.73.1",
+]
 
 [tool.uv.workspace]
 members = ["apps/*", "core"]

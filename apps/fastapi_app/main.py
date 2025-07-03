@@ -9,27 +9,27 @@ from core.database import get_db, Base, engine
 from core.schemas import TaskCreate, Task, TaskUpdate
 from core.services import TaskService
 
-# 데이터베이스 테이블 생성
+# Create database tables
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Task API", version="1.0.0")
 
-# Prometheus 메트릭 설정
+# Prometheus metrics configuration
 Instrumentator().instrument(app).expose(app)
 
 @app.post("/tasks/", response_model=Task)
 def create_task(task: TaskCreate, db: Session = Depends(get_db)):
-    """새로운 태스크를 생성합니다."""
+    """Create a new task."""
     return TaskService.create_task(db=db, title=task.title, description=task.description)
 
 @app.get("/tasks/", response_model=List[Task])
 def list_tasks(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    """태스크 목록을 조회합니다."""
+    """Retrieve a list of tasks."""
     return TaskService.get_tasks(db=db, skip=skip, limit=limit)
 
 @app.get("/tasks/{task_id}", response_model=Task)
 def get_task(task_id: int, db: Session = Depends(get_db)):
-    """특정 태스크를 조회합니다."""
+    """Retrieve a specific task."""
     task = TaskService.get_task(db=db, task_id=task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -37,7 +37,7 @@ def get_task(task_id: int, db: Session = Depends(get_db)):
 
 @app.patch("/tasks/{task_id}", response_model=Task)
 def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get_db)):
-    """태스크를 업데이트합니다."""
+    """Update a task."""
     task = TaskService.update_task(
         db=db,
         task_id=task_id,
@@ -51,7 +51,7 @@ def update_task(task_id: int, task_update: TaskUpdate, db: Session = Depends(get
 
 @app.delete("/tasks/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
-    """태스크를 삭제합니다."""
+    """Delete a task."""
     success = TaskService.delete_task(db=db, task_id=task_id)
     if not success:
         raise HTTPException(status_code=404, detail="Task not found")

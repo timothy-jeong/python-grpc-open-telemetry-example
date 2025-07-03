@@ -1,204 +1,183 @@
+import logging
+import time
 from datetime import datetime
 from typing import Optional, Dict, List
 
-from google.protobuf.timestamp_pb2 import Timestamp
+import grpc
 from sqlalchemy.orm import Session
+from google.protobuf import empty_pb2
+from google.protobuf.timestamp_pb2 import Timestamp
+from opentelemetry import trace
 
-from core.database import get_db_context
+from core.database import SessionLocal
+from core.models import Task
 from core.services import TaskService
-import task_pb2
-import task_pb2_grpc
-from open_telemetry_exporter import OTelMetricExporter
+import task_pb2, task_pb2_grpc
+from metrics import grpc_request_counter, grpc_request_latency
 
-# 메트릭 수집을 위한 전역 딕셔너리
-all_metrics: Dict[str, List] = {}
+# Logging configuration
+logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
-def datetime_to_timestamp(dt: Optional[datetime]) -> Optional[Timestamp]:
-    """datetime 객체를 Protocol Buffer Timestamp로 변환합니다."""
-    if dt is None:
-        return None
+def datetime_to_timestamp(dt: datetime) -> Timestamp:
+    """Convert datetime object to Protocol Buffer Timestamp."""
     ts = Timestamp()
     ts.FromDatetime(dt)
     return ts
 
-
 class TaskServicer(task_pb2_grpc.TaskServiceServicer):
-    """Task 서비스 구현체"""
+    """Task service implementation"""
 
     def __init__(self):
-        # OpenTelemetry 메트릭 익스포터 초기화
-        self._metric_exporter = OTelMetricExporter(
-            all_metrics=all_metrics,
-            print_live=True  # 실시간으로 메트릭 출력
-        )
-
-    def _record_metric(self, metric_name: str, attributes: Dict = None):
-        """메트릭을 기록합니다."""
-        if attributes is None:
-            attributes = {}
-        
-        # 메트릭 이름이 없으면 초기화
-        if metric_name not in all_metrics:
-            all_metrics[metric_name] = []
-        
-        # 메트릭 기록
-        all_metrics[metric_name].append(attributes)
+        self.db: Session = SessionLocal()
 
     def CreateTask(self, request, context):
-        """태스크를 생성합니다."""
         try:
-            with get_db_context() as db:
+            with grpc_request_latency.labels(method="CreateTask").time():
                 task = TaskService.create_task(
-                    db=db,
+                    db=self.db,
                     title=request.title,
-                    description=request.description if request.HasField("description") else None
+                    description=request.description
                 )
-            
-                # 성공 메트릭 기록
-                self._record_metric(
-                    "task.create.success",
-                    {"method": "CreateTask", "task_id": str(task.id)}
-                )
-            
-                return self._task_to_proto(task)
-        except Exception as e:
-            # 실패 메트릭 기록
-            self._record_metric(
-                "task.create.error",
-                {"method": "CreateTask", "error": str(e)}
-            )
-            raise
-
-    def ListTasks(self, request, context):
-        """태스크 목록을 조회합니다."""
-        try:
-            with get_db_context() as db:
-                tasks = TaskService.get_tasks(
-                    db=db,
-                    skip=request.skip,
-                    limit=request.limit
-                )
-            
-                # 성공 메트릭 기록
-                self._record_metric(
-                    "task.list.success",
-                    {"method": "ListTasks", "count": len(tasks)}
-                )
-            
-                return task_pb2.ListTasksResponse(
-                    tasks=[self._task_to_proto(task) for task in tasks]
+                grpc_request_counter.labels(method="CreateTask", status="success").inc()
+                return task_pb2.TaskResponse(
+                    id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    completed=task.completed,
+                    created_at=datetime_to_timestamp(task.created_at),
+                    updated_at=datetime_to_timestamp(task.updated_at) if task.updated_at else None
                 )
         except Exception as e:
-            # 실패 메트릭 기록
-            self._record_metric(
-                "task.list.error",
-                {"method": "ListTasks", "error": str(e)}
-            )
-            raise
+            grpc_request_counter.labels(method="CreateTask", status="error").inc()
+            logger.error(f"Error creating task: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return task_pb2.TaskResponse()
 
     def GetTask(self, request, context):
-        """특정 태스크를 조회합니다."""
         try:
-            with get_db_context() as db:
-                task = TaskService.get_task(db=db, task_id=request.task_id)
-                if task is None:
-                    # 실패 메트릭 기록
-                    self._record_metric(
-                        "task.get.not_found",
-                        {"method": "GetTask", "task_id": str(request.task_id)}
-                    )
-                    context.abort(404, "Task not found")
-            
-                # 성공 메트릭 기록
-                self._record_metric(
-                    "task.get.success",
-                    {"method": "GetTask", "task_id": str(task.id)}
+            with grpc_request_latency.labels(method="GetTask").time():
+                task = TaskService.get_task(db=self.db, task_id=request.task_id)
+                if not task:
+                    grpc_request_counter.labels(method="GetTask", status="not_found").inc()
+                    context.set_code(grpc.StatusCode.NOT_FOUND)
+                    context.set_details(f"Task with ID {request.task_id} not found")
+                    return task_pb2.TaskResponse()
+                
+                grpc_request_counter.labels(method="GetTask", status="success").inc()
+                return task_pb2.TaskResponse(
+                    id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    completed=task.completed,
+                    created_at=datetime_to_timestamp(task.created_at),
+                    updated_at=datetime_to_timestamp(task.updated_at) if task.updated_at else None
                 )
-            
-                return self._task_to_proto(task)
         except Exception as e:
-            # 실패 메트릭 기록
-            self._record_metric(
-                "task.get.error",
-                {"method": "GetTask", "error": str(e)}
-            )
-            raise
+            grpc_request_counter.labels(method="GetTask", status="error").inc()
+            logger.error(f"Error getting task: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return task_pb2.TaskResponse()
+
+    def ListTasks(self, request, context):
+        try:
+            with grpc_request_latency.labels(method="ListTasks").time():
+                skip = request.skip if request.skip else 0
+                limit = request.limit if request.limit else 100
+                tasks = TaskService.get_tasks(db=self.db, skip=skip, limit=limit)
+                grpc_request_counter.labels(method="ListTasks", status="success").inc()
+                return task_pb2.ListTasksResponse(
+                    tasks=[
+                        task_pb2.TaskResponse(
+                            id=task.id,
+                            title=task.title,
+                            description=task.description,
+                            completed=task.completed,
+                            created_at=datetime_to_timestamp(task.created_at),
+                            updated_at=datetime_to_timestamp(task.updated_at) if task.updated_at else None
+                        )
+                        for task in tasks
+                    ]
+                )
+        except Exception as e:
+            grpc_request_counter.labels(method="ListTasks", status="error").inc()
+            logger.error(f"Error listing tasks: {e}")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(str(e))
+            return task_pb2.ListTasksResponse()
 
     def UpdateTask(self, request, context):
-        """태스크를 업데이트합니다."""
-        try:
-            with get_db_context() as db:
+        with tracer.start_as_current_span("UpdateTask") as span:
+            try:
                 task = TaskService.update_task(
-                    db=db,
+                    db=self.db,
                     task_id=request.task_id,
                     title=request.title if request.HasField("title") else None,
                     description=request.description if request.HasField("description") else None,
                     completed=request.completed if request.HasField("completed") else None
                 )
                 if task is None:
-                    # 실패 메트릭 기록
-                    self._record_metric(
-                        "task.update.not_found",
-                        {"method": "UpdateTask", "task_id": str(request.task_id)}
-                    )
-                    context.abort(404, "Task not found")
+                    grpc_request_counter.labels(method="UpdateTask", status="not_found").inc()
+                    context.set_code(grpc.StatusCode.NOT_FOUND)
+                    context.set_details(f"Task with id {request.task_id} not found")
+                    return task_pb2.TaskResponse()
             
-                # 성공 메트릭 기록
-                self._record_metric(
-                    "task.update.success",
-                    {"method": "UpdateTask", "task_id": str(task.id)}
+                grpc_request_counter.labels(method="UpdateTask", status="success").inc()
+                return task_pb2.TaskResponse(
+                    id=task.id,
+                    title=task.title,
+                    description=task.description,
+                    completed=task.completed,
+                    created_at=datetime_to_timestamp(task.created_at),
+                    updated_at=datetime_to_timestamp(task.updated_at) if task.updated_at else None
                 )
-            
-                return self._task_to_proto(task)
-        except Exception as e:
-            # 실패 메트릭 기록
-            self._record_metric(
-                "task.update.error",
-                {"method": "UpdateTask", "error": str(e)}
-            )
-            raise
+            except Exception as e:
+                grpc_request_counter.labels(method="UpdateTask", status="error").inc()
+                logger.error(f"Error updating task: {e}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(str(e))
+                return task_pb2.TaskResponse()
 
     def DeleteTask(self, request, context):
-        """태스크를 삭제합니다."""
-        try:
-            with get_db_context() as db:
-                success = TaskService.delete_task(db=db, task_id=request.task_id)
+        with tracer.start_as_current_span("DeleteTask") as span:
+            try:
+                success = TaskService.delete_task(db=self.db, task_id=request.task_id)
                 if not success:
-                    # 실패 메트릭 기록
-                    self._record_metric(
-                        "task.delete.not_found",
-                        {"method": "DeleteTask", "task_id": str(request.task_id)}
-                    )
-                    context.abort(404, "Task not found")
+                    grpc_request_counter.labels(method="DeleteTask", status="not_found").inc()
+                    context.set_code(grpc.StatusCode.NOT_FOUND)
+                    context.set_details(f"Task with id {request.task_id} not found")
+                    return task_pb2.DeleteTaskResponse(success=False)
             
-                # 성공 메트릭 기록
-                self._record_metric(
-                    "task.delete.success",
-                    {"method": "DeleteTask", "task_id": str(request.task_id)}
-                )
-            
+                grpc_request_counter.labels(method="DeleteTask", status="success").inc()
                 return task_pb2.DeleteTaskResponse(success=True)
-        except Exception as e:
-            # 실패 메트릭 기록
-            self._record_metric(
-                "task.delete.error",
-                {"method": "DeleteTask", "error": str(e)}
-            )
-            raise
+            except Exception as e:
+                grpc_request_counter.labels(method="DeleteTask", status="error").inc()
+                logger.error(f"Error deleting task: {e}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(str(e))
+                return task_pb2.DeleteTaskResponse(success=False)
 
-    def _task_to_proto(self, task) -> task_pb2.TaskResponse:
-        """Task 모델을 Protocol Buffer 메시지로 변환합니다."""
-        response = task_pb2.TaskResponse(
-            id=task.id,
-            title=task.title,
-            completed=task.completed,
-            created_at=datetime_to_timestamp(task.created_at)
-        )
-        
-        if task.description:
-            response.description = task.description
-        
-        if task.updated_at:
-            response.updated_at.CopyFrom(datetime_to_timestamp(task.updated_at))
-        
-        return response 
+    def WatchTasks(self, request, context):
+        with tracer.start_as_current_span("WatchTasks") as span:
+            try:
+                tasks = TaskService.get_tasks(db=self.db)
+                grpc_request_counter.labels(method="WatchTasks", status="success").inc()
+                for task in tasks:
+                    yield task_pb2.TaskResponse(
+                        task=task_pb2.Task(
+                            id=task.id,
+                            title=task.title,
+                            description=task.description,
+                            completed=task.completed,
+                            created_at=datetime_to_timestamp(task.created_at),
+                            updated_at=datetime_to_timestamp(task.updated_at) if task.updated_at else None
+                        )
+                    )
+            except Exception as e:
+                grpc_request_counter.labels(method="WatchTasks", status="error").inc()
+                logger.error(f"Error watching tasks: {e}")
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details(str(e))
+                return 
