@@ -17,9 +17,11 @@ SQLALCHEMY_DATABASE_URL = os.getenv(
 
 # PostgreSQL 엔진 생성
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
-logfire.configure()
 
+# Configure logfire
+logfire.configure()
 logfire.instrument_sqlalchemy(engine=engine)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

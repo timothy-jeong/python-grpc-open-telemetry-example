@@ -15,8 +15,7 @@ logger = logging.getLogger(__name__)
 logfire.configure()
 
 # gRPC client instrumentation
-grpc_client_instrumentor = GrpcInstrumentorClient()
-grpc_client_instrumentor.instrument()
+GrpcInstrumentorClient().instrument()
 
 def run():
     with grpc.insecure_channel("localhost:50051") as channel:

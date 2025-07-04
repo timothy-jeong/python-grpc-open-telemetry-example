@@ -13,9 +13,13 @@ from core.database import SessionLocal
 from core.models import Task
 from core.services import TaskService
 import task_pb2, task_pb2_grpc
+from opentelemetry.instrumentation.grpc import GrpcInstrumentorServer
 
 # Logging configuration
 logger = logging.getLogger(__name__)
+
+logfire.configure()
+GrpcInstrumentorServer().instrument()
 
 def datetime_to_timestamp(dt: datetime) -> Timestamp:
     """Convert datetime object to Protocol Buffer Timestamp."""
