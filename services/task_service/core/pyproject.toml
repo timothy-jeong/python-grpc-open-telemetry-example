@@ -1,0 +1,17 @@
+[project]
+name = "task-service-core"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.12.*"
+dependencies = [
+    "shared.exception",
+    "shared.dao",
+    "example-app[sql-observability]",
+]
+
+
+[tool.uv.sources]
+example-app = { workspace = true }
+"shared.exception" = { workspace = true }
+"shared.dao" = { workspace = true }

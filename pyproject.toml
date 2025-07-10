@@ -1,10 +1,43 @@
 [project]
-name = "python-grpc-open-telemetry-example"
+name = "example-app"
 version = "0.1.0"
-description = "FastAPI and GRPC share same logic"
+description = "MSA Observability with Logfire Example"
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = "==3.12.*"
 dependencies = []
 
 [tool.uv.workspace]
-members = ["apps/*", "core"]
+members = [
+    "services/*/*",
+    "packages/*",
+]
+
+[project.optional-dependencies]
+core = [
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.10",
+]
+fastapi = [
+    "fastapi>=0.115.6",
+    "uvicorn[standard]>=0.32.1",
+]
+grpc = [
+    "grpcio>=1.62.0,<1.70.0",
+    "grpcio-tools>=1.62.0,<1.70.0",
+    "protobuf>=4.25.0,<5.0.0",
+]
+sql = [
+    "sqlalchemy>=2.0.0",
+    "psycopg2-binary>=2.9.10",    
+]
+fastapi-observability = [
+    "logfire[fastapi]>=2.0.0,<4.0.0"
+]
+grpc-observability = [
+    "opentelemetry-sdk>=1.21.0,<1.31.0",
+    "opentelemetry-instrumentation-grpc>=0.42b0,<0.45.0",
+    "logfire>=2.0.0,<4.0.0",
+]
+sql-observability = [
+    "logfire[sqlalchemy]>=2.0.0,<4.0.0",
+]
